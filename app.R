@@ -32,9 +32,7 @@ ui <- bootstrapPage(
       label = "Variable", 
       choices = list(
         "Temperature" = "TD",
-        "Relative Humidity" = "RH"#,
-        # "Rainfall" = "Rain"
-        # "Wind Speed" = "WS"
+        "Relative Humidity" = "RH"
         ), 
       selected = "TD"
       ),
@@ -96,32 +94,35 @@ server <- function(input, output, session) {
   proj4string(dat) = "+proj=longlat +datum=WGS84"
   dat = spTransform(dat, CRS(proj4string(grid)))
   
+# Current variable
 filtered <- reactive({
     dat$var = dat@data[, input$var] %>% as.numeric
     dat[!is.na(dat$var), ]
   })
 
+# Stations point layer
 pnt <- reactive({
   pnt = spTransform(filtered(), CRS("+proj=longlat +datum=WGS84"))
   pnt$label = paste0(pnt$stn_name, ": ", pnt$var)
   pnt
 })
 
-observe({
-  if(!all(filtered()$Rain == 0)) {
-  updateRadioButtons(
-    "var", 
-    label = "Variable", 
-    choices = list(
-      "Temperature" = "TD",
-      "Relative Humidity" = "RH",
-      "Rainfall" = "Rain"
-    ), 
-    selected = "TD"
-  )
-    }
-    })
+# Add 'Rainfall' button if it is raining
+# observe({
+#   if(!all(filtered()$Rain == 0)) {
+#   updateRadioButtons(
+#     "var", 
+#     label = "Variable", 
+#     choices = list(
+#       "Temperature" = "TD",
+#       "Relative Humidity" = "RH",
+#       "Rainfall" = "Rain"
+#     ), 
+#     selected = "TD"
+#   )}
+# })
 
+# Scale breaks
 vals = reactive({
   switch(
       input$var, 
@@ -129,47 +130,26 @@ vals = reactive({
       RH = seq(0, 100, 5)
     )
 })
-  
+
+# Scale breaks centers
 ctrs = reactive({
   vals()[1:(length(vals())-1)] + diff(vals())/2
 })
 
+# Scale colours
 cols = reactive({
   cols = rainbow(length(ctrs())+5)[1:length(ctrs())]
   if(input$var %in% c("TD")) cols = rev(cols)
   cols
 })
 
-output$datetime = renderText({filtered()$time_obs[1]})
+# Datetime
+# output$datetime = renderText({filtered()$time_obs[1]})
 
+# Map
 output$map = renderLeaflet({
   
-#   if(input$var == "Rain" & all(dat1$var == 0)) {
-#     z = grid
-#     z[!is.na(z)] = 0
-#     
-#     pnt = spTransform(dat1, CRS("+proj=longlat +datum=WGS84"))
-#     
-#     pal = colorNumeric(palette = "red", domain = 0, na.color = NA)
-#     
-#     leaflet() %>% 
-#       addTiles() %>% 
-#       addRasterImage(
-#         z, 
-#         colors = pal, 
-#         opacity = 0.75
-#       ) %>% 
-#       addCircleMarkers(
-#         data = pnt, 
-#         weight = 1, 
-#         radius = 2.5, 
-#         color = "black", 
-#         fillOpacity = 0,
-#         popup = ~as.character(var)
-#       )
-#     
-#   } else {
-  
+  # Inverse Distance Weighted interpolation
   if(input$method == "IDW") {
     g = gstat(
       formula = var ~ 1, 
@@ -177,7 +157,7 @@ output$map = renderLeaflet({
     z = interpolate(grid, g)
   }
   
-  
+  # Ordinary Kriging interpolation
   if(input$method == "OK") {
     v = autofitVariogram(var ~ 1, filtered())
     g = gstat(
@@ -187,6 +167,7 @@ output$map = renderLeaflet({
     z = interpolate(grid, g)
   }
   
+  # Universal Kriging interpolation
   if(input$method == "UK") {
     v = autofitVariogram(var ~ elevation, filtered())
     g = gstat(
@@ -196,19 +177,21 @@ output$map = renderLeaflet({
     z = interpolate(grid, g, xyOnly = FALSE)
   }
   
+  # Reclassify raster
   rcl = matrix(
     c(vals()[1:(length(vals())-1)],
     vals()[2:length(vals())],
     (vals()[1:(length(vals())-1)] + vals()[2:length(vals())]) / 2),
     ncol = 3
     )
-  
   z = reclassify(z, rcl)
   z = mask(z, grid)
   
+  # Polygons
   pol = rasterToPolygons(z, n = 4, dissolve = TRUE)
   pol = spTransform(pol, CRS("+proj=longlat +datum=WGS84"))
   
+  # Contour lines
   line = rasterToContour(z, levels = vals())
   line = spTransform(line, CRS("+proj=longlat +datum=WGS84"))
   line = disaggregate(line)
@@ -216,42 +199,43 @@ output$map = renderLeaflet({
   # Current palette
   current_vals = values(z) %>% unique %>% sort
   current_cols = cols()[match(current_vals, ctrs())]
-  
   pal = colorNumeric(palette = cols(), domain = vals(), na.color = NA)
   
+  # Output map
   leaflet() %>% 
-  addTiles() %>% 
-  addRasterImage(
-    z, 
-    colors = pal, 
-    opacity = 0.75
-    ) %>% 
-#   addCircleMarkers(
-#     data = pnt(), 
-#     weight = 1, 
-#     radius = 5, 
-#     color = "black", 
-#     fillColor = "black",
-#     fillOpacity = 0
-#     # popup = ~as.character(var)
-#     ) %>% 
-  addPolygons(data = pol, 
-    stroke = FALSE, 
-    fillOpacity = 0, 
-    popup = ~as.character(layer)
-    ) %>% 
-  addPolylines(data = line, weight = 1, color = "black") %>% 
-  addLegend(
-    position = "topright", 
-    colors = current_cols %>% substr(1, 7),
-    labels = current_vals, 
-    opacity = 1,
-    title = recent %>% format('%H:%M') #%>% gsub(" ", "\n", .)
+    addTiles() %>% 
+    addRasterImage(
+      z, 
+      colors = pal, 
+      opacity = 0.75
+      ) %>% 
+    addPolygons(data = pol, 
+      stroke = FALSE, 
+      fillOpacity = 0, 
+      popup = ~as.character(layer)
+      ) %>% 
+    addPolylines(data = line, weight = 1, color = "black") %>% 
+    addLegend(
+      position = "topright", 
+      colors = current_cols %>% substr(1, 7),
+      labels = current_vals, 
+      opacity = 1,
+      title = recent %>% format('%H:%M')
   )
-  # }
-
 })
 
+# Interpolated values
+observe({
+  map = leafletProxy("map", session)
+  
+    map %>% 
+    addMarkers(
+      data = pnt(), 
+      popup = ~label
+    )
+})
+
+# Show/Hide markers
 observe({
   map = leafletProxy("map", session)
   map %>% clearMarkers()
@@ -260,16 +244,8 @@ observe({
     map %>% 
     addMarkers(
       data = pnt(), 
-#       weight = 1, 
-#       radius = 5, 
-#       color = "black", 
-#       fillColor = "black",
-#       fillOpacity = 0,
       popup = ~label
     )
-  
-  proxy <- leafletProxy("map")
-  
 })
   
 }
