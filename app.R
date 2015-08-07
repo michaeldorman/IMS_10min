@@ -275,12 +275,3 @@ observe({
 }
 
 shinyApp(server = server, ui = ui)
-
-# library(htmlwidgets)
-# saveWidget(m, file="m.html")
-
-# Publish HTML to Rpubs
-# options(rpubs.upload.method = "internal")
-# rpubsUpload("Current Temperature in Israel", 
-#   "m.html",
-# 	id = "https://api.rpubs.com/api/v1/document/56898/5a37c0b5698440c4bbdc81db6bb1a3cb")
