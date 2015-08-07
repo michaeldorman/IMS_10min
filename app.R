@@ -146,8 +146,22 @@ cols = reactive({
 # Datetime
 # output$datetime = renderText({filtered()$time_obs[1]})
 
-# Map
+# Base map
 output$map = renderLeaflet({
+
+  leaflet() %>% 
+    addTiles() %>% 
+    fitBounds(34.22457, 29.48087, 35.89474, 33.33879)
+})
+
+# Add interpolated values
+observe({
+  
+  map = leafletProxy("map", session)
+  map %>% 
+    clearShapes() %>% 
+    clearControls() %>% 
+    clearImages()
   
   # Inverse Distance Weighted interpolation
   if(input$method == "IDW") {
@@ -180,10 +194,10 @@ output$map = renderLeaflet({
   # Reclassify raster
   rcl = matrix(
     c(vals()[1:(length(vals())-1)],
-    vals()[2:length(vals())],
-    (vals()[1:(length(vals())-1)] + vals()[2:length(vals())]) / 2),
+      vals()[2:length(vals())],
+      (vals()[1:(length(vals())-1)] + vals()[2:length(vals())]) / 2),
     ncol = 3
-    )
+  )
   z = reclassify(z, rcl)
   z = mask(z, grid)
   
@@ -201,50 +215,38 @@ output$map = renderLeaflet({
   current_cols = cols()[match(current_vals, ctrs())]
   pal = colorNumeric(palette = cols(), domain = vals(), na.color = NA)
   
-  # Output map
-  leaflet() %>% 
-    addTiles() %>% 
-    addRasterImage(
-      z, 
-      colors = pal, 
-      opacity = 0.75
-      ) %>% 
-    addPolygons(data = pol, 
-      stroke = FALSE, 
-      fillOpacity = 0, 
-      popup = ~as.character(layer)
-      ) %>% 
-    addPolylines(data = line, weight = 1, color = "black") %>% 
-    addLegend(
-      position = "topright", 
-      colors = current_cols %>% substr(1, 7),
-      labels = current_vals, 
-      opacity = 1,
-      title = recent %>% format('%H:%M')
-  )
-})
-
-# Interpolated values
-observe({
-  map = leafletProxy("map", session)
-  
     map %>% 
-    addMarkers(
-      data = pnt(), 
-      popup = ~label
-    )
+      addRasterImage(
+        z, 
+        colors = pal, 
+        opacity = 0.75
+      ) %>% 
+      addPolygons(data = pol, 
+        stroke = FALSE, 
+        fillOpacity = 0, 
+        popup = ~as.character(layer)
+      ) %>% 
+      addPolylines(data = line, weight = 1, color = "black") %>% 
+      addLegend(
+        position = "topright", 
+        colors = current_cols %>% substr(1, 7),
+        labels = current_vals, 
+        opacity = 1,
+        title = recent %>% format('%H:%M') 
+        )
 })
 
 # Show/Hide markers
 observe({
+  
   map = leafletProxy("map", session)
   map %>% clearMarkers()
   
   if(input$markers)
     map %>% 
-    addMarkers(
-      data = pnt(), 
-      popup = ~label
+      addMarkers(
+        data = pnt(), 
+        popup = ~label
     )
 })
   
