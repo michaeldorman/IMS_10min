@@ -87,8 +87,6 @@ server <- function(input, output, session) {
   
   # Convert to point layer
   dat = join(dat, stations, "stn_name")
-  dat$lon = dat$lon %>% gsub("º", "", .) %>% as.numeric
-  dat$lat = dat$lat %>% gsub("º", "", .) %>% as.numeric
   dat = dat[!is.na(dat$lon) & !is.na(dat$lat), ]
   coordinates(dat) = ~ lon + lat
   proj4string(dat) = "+proj=longlat +datum=WGS84"
@@ -189,6 +187,12 @@ observe({
       model = v$var_model, 
       data = filtered())
     z = interpolate(grid, g, xyOnly = FALSE)
+  }
+  
+  # Humidity correction
+  if(input$var == "RH") {
+    z[z<0] = 0
+    z[z>100] = 100
   }
   
   # Reclassify raster
