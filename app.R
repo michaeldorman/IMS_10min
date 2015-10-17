@@ -26,7 +26,6 @@ ui <- bootstrapPage(
   tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
   leafletOutput("map", width = "100%", height = "100%"),
   absolutePanel(top = 100, left = 10,
-    # textOutput("datetime"),
     radioButtons(
       "var", 
       label = "Variable", 
@@ -106,26 +105,55 @@ pnt <- reactive({
 })
 
 # Add 'Rainfall' button if it is raining
-# observe({
-#   if(!all(filtered()$Rain == 0)) {
-#   updateRadioButtons(
-#     "var", 
-#     label = "Variable", 
-#     choices = list(
-#       "Temperature" = "TD",
-#       "Relative Humidity" = "RH",
-#       "Rainfall" = "Rain"
-#     ), 
-#     selected = "TD"
-#   )}
-# })
+observe({
+  if((dat$Rain %>% as.numeric %>% sum(na.rm=TRUE)) > 1) {
+  updateRadioButtons(
+    session,
+    "var", 
+    label = "Variable", 
+    choices = list(
+      "Temperature" = "TD",
+      "Relative Humidity" = "RH",
+      "Rainfall" = "Rain"
+    ), 
+    selected = "TD"
+  )}
+})
+
+# Select 'IDW' if var='Rain', reverse otherwise
+observe({
+  if(input$var == "Rain") {
+    updateRadioButtons(
+      session,
+      "method", 
+      label = "Method", 
+      choices = list(
+        "IDW" = "IDW"
+      ),
+      selected = "IDW"
+    )}
+})
+observe({
+  if(input$var != "Rain") {
+    updateRadioButtons(
+      session,
+      "method", 
+      label = "Method", 
+      choices = list("IDW" = "IDW",
+        "OK" = "OK",
+        "UK" = "UK"
+      ),
+      selected = "UK"
+    )}
+})
 
 # Scale breaks
 vals = reactive({
   switch(
       input$var, 
       TD = seq(1, 50, 1),
-      RH = seq(0, 100, 5)
+      RH = seq(0, 100, 5),
+      Rain = seq(0, 10, 0.1)
     )
 })
 
@@ -137,12 +165,10 @@ ctrs = reactive({
 # Scale colours
 cols = reactive({
   cols = rainbow(length(ctrs())+5)[1:length(ctrs())]
-  if(input$var %in% c("TD")) cols = rev(cols)
+  if(input$var == "TD") cols = rev(cols)
+  if(input$var == "Rain") cols[1] = NA
   cols
 })
-
-# Datetime
-# output$datetime = renderText({filtered()$time_obs[1]})
 
 # Base map
 output$map = renderLeaflet({
@@ -189,10 +215,13 @@ observe({
     z = interpolate(grid, g, xyOnly = FALSE)
   }
   
-  # Humidity correction
+  # Predicted values range correction
   if(input$var == "RH") {
     z[z<0] = 0
     z[z>100] = 100
+  }
+  if(input$var == "Rain") {
+    z[z<0] = NA
   }
   
   # Reclassify raster
@@ -234,9 +263,9 @@ observe({
       addLegend(
         position = "topright", 
         colors = current_cols %>% substr(1, 7),
-        labels = current_vals, 
+        labels = current_vals,
         opacity = 1,
-        title = recent %>% format('%H:%M') 
+        title = recent %>% format('%d-%b %H:%M')
         )
 })
 
