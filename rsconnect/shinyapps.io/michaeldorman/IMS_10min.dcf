@@ -1,8 +1,8 @@
 name: IMS_10min
 account: michaeldorman
 server: shinyapps.io
-bundleId: 283858
+bundleId: 297366
 url: https://michaeldorman.shinyapps.io/IMS_10min
-when: 1444334195.91114
+when: 1445790326.46233
 asMultiple: FALSE
 asStatic: FALSE

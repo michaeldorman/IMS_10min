@@ -8,7 +8,6 @@
 library(shiny)
 library(leaflet)
 library(magrittr)
-
 library(XML)
 library(httr)
 library(plyr)
@@ -31,7 +30,8 @@ ui <- bootstrapPage(
       label = "Variable", 
       choices = list(
         "Temperature" = "TD",
-        "Relative Humidity" = "RH"
+        "Relative Humidity" = "RH",
+        "Rainfall" = "Rain"
         ), 
       selected = "TD"
       ),
@@ -74,7 +74,7 @@ server <- function(input, output, session) {
   
   # Daylight savings time
   current = Sys.Date()
-  dst = seq(as.Date("2015-05-27"), as.Date("2015-10-25"), by = 1)
+  dst = seq(as.Date("2015-05-27"), as.Date("2015-10-24"), by = 1)
   if(current %in% dst) { # Daylight saving time in effect
     dat$time_obs = dat$time_obs + 60*60
   }
@@ -104,47 +104,19 @@ pnt <- reactive({
   pnt
 })
 
-# Add 'Rainfall' button if it is raining
+# Remove 'Rainfall' button if it is NOT raining
 observe({
-  if((dat$Rain %>% as.numeric %>% sum(na.rm=TRUE)) > 1) {
+  if((dat$Rain %>% as.numeric %>% sum(na.rm=TRUE)) < 1) {
   updateRadioButtons(
     session,
     "var", 
     label = "Variable", 
     choices = list(
       "Temperature" = "TD",
-      "Relative Humidity" = "RH",
-      "Rainfall" = "Rain"
+      "Relative Humidity" = "RH"
     ), 
     selected = "TD"
   )}
-})
-
-# Select 'IDW' if var='Rain', reverse otherwise
-observe({
-  if(input$var == "Rain") {
-    updateRadioButtons(
-      session,
-      "method", 
-      label = "Method", 
-      choices = list(
-        "IDW" = "IDW"
-      ),
-      selected = "IDW"
-    )}
-})
-observe({
-  if(input$var != "Rain") {
-    updateRadioButtons(
-      session,
-      "method", 
-      label = "Method", 
-      choices = list("IDW" = "IDW",
-        "OK" = "OK",
-        "UK" = "UK"
-      ),
-      selected = "UK"
-    )}
 })
 
 # Scale breaks
@@ -153,7 +125,7 @@ vals = reactive({
       input$var, 
       TD = seq(1, 50, 1),
       RH = seq(0, 100, 5),
-      Rain = seq(0, 10, 0.1)
+      Rain = seq(0, 5, 0.1)
     )
 })
 
@@ -165,8 +137,8 @@ ctrs = reactive({
 # Scale colours
 cols = reactive({
   cols = rainbow(length(ctrs())+5)[1:length(ctrs())]
-  if(input$var == "TD") cols = rev(cols)
-  if(input$var == "Rain") cols[1] = NA
+  if(input$var %in% c("TD", "Rain")) cols = rev(cols)
+  # if(input$var == "Rain") cols[1] = NA
   cols
 })
 
@@ -232,6 +204,8 @@ observe({
     ncol = 3
   )
   z = reclassify(z, rcl)
+  
+  # Mask
   z = mask(z, grid)
   
   # Polygons
@@ -244,7 +218,7 @@ observe({
   line = disaggregate(line)
   
   # Current palette
-  current_vals = values(z) %>% unique %>% sort
+  current_vals = z %>% values %>% unique %>% sort
   current_cols = cols()[match(current_vals, ctrs())]
   pal = colorNumeric(palette = cols(), domain = vals(), na.color = NA)
   
