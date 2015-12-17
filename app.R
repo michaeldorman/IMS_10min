@@ -21,7 +21,7 @@ library(automap)
 #########################################################################
 
 # UI
-ui <- bootstrapPage(
+ui = bootstrapPage(
   tags$style(type = "text/css", "html, body {width:100%;height:100%}"),
   leafletOutput("map", width = "100%", height = "100%"),
   absolutePanel(top = 100, left = 10,
@@ -30,8 +30,8 @@ ui <- bootstrapPage(
       label = "Variable", 
       choices = list(
         "Temperature" = "TD",
-        "Relative Humidity" = "RH",
-        "Rainfall" = "Rain"
+        "Relative Humidity" = "RH"#,
+        # "Rainfall" = "Rain"
         ), 
       selected = "TD"
       ),
@@ -50,7 +50,7 @@ ui <- bootstrapPage(
 )
 
 # SERVER
-server <- function(input, output, session) {
+server = function(input, output, session) {
   
   # Input data
   url.name = "https://data.gov.il//sites/data.gov.il/files/xml/imslasthour.xml"
@@ -104,26 +104,11 @@ pnt <- reactive({
   pnt
 })
 
-# Remove 'Rainfall' button if it is NOT raining
-observe({
-  if((dat$Rain %>% as.numeric %>% sum(na.rm=TRUE)) < 1) {
-  updateRadioButtons(
-    session,
-    "var", 
-    label = "Variable", 
-    choices = list(
-      "Temperature" = "TD",
-      "Relative Humidity" = "RH"
-    ), 
-    selected = "TD"
-  )}
-})
-
 # Scale breaks
 vals = reactive({
   switch(
       input$var, 
-      TD = seq(1, 50, 1),
+      TD = seq(-10, 50, 1),
       RH = seq(0, 100, 5),
       Rain = seq(0, 5, 0.1)
     )
@@ -137,8 +122,7 @@ ctrs = reactive({
 # Scale colours
 cols = reactive({
   cols = rainbow(length(ctrs())+5)[1:length(ctrs())]
-  if(input$var %in% c("TD", "Rain")) cols = rev(cols)
-  # if(input$var == "Rain") cols[1] = NA
+  if(input$var %in% c("TD")) cols = rev(cols)
   cols
 })
 
@@ -192,9 +176,6 @@ observe({
     z[z<0] = 0
     z[z>100] = 100
   }
-  if(input$var == "Rain") {
-    z[z<0] = NA
-  }
   
   # Reclassify raster
   rcl = matrix(
@@ -218,7 +199,10 @@ observe({
   line = disaggregate(line)
   
   # Current palette
-  current_vals = z %>% values %>% unique %>% sort
+  v = z %>% values
+  v1 = v %>% min(na.rm = TRUE)
+  v2 = v %>% max(na.rm = TRUE)
+  current_vals = ctrs()[match(v1, ctrs()):match(v2, ctrs())]
   current_cols = cols()[match(current_vals, ctrs())]
   pal = colorNumeric(palette = cols(), domain = vals(), na.color = NA)
   
